@@ -95,9 +95,11 @@ async fn async_main() -> anyhow::Result<()> {
         .route("/store", post(rest_store))
         .route("/recall", post(rest_recall))
         .route("/stats", get(rest_stats))
-        // MCP SSE transport
+        // MCP SSE transport (legacy)
         .route("/sse", get(mcp::transport::sse_handler))
         .route("/messages", post(mcp::transport::message_handler))
+        // MCP Streamable HTTP transport (2025-03-26 spec)
+        .route("/mcp", post(mcp::transport::streamable_mcp_handler))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

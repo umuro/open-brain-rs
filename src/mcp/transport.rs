@@ -1,6 +1,10 @@
 use axum::{
     extract::{Query, State},
-    response::sse::{Event, KeepAlive, Sse},
+    http::{HeaderMap, HeaderValue, StatusCode},
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse,
+    },
     Json,
 };
 use dashmap::DashMap;
@@ -158,4 +162,31 @@ async fn dispatch_rpc(req: JsonRpcRequest, state: &AppState) -> JsonRpcResponse 
         "notifications/initialized" => JsonRpcResponse::ok(req.id, json!({})),
         _ => JsonRpcResponse::err(req.id, -32601, "Method not found"),
     }
+}
+
+pub async fn streamable_mcp_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<JsonRpcRequest>,
+) -> impl IntoResponse {
+    let session_id = headers
+        .get("mcp-session-id")
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let response = dispatch_rpc(body, &state).await;
+    let payload = serde_json::to_value(&response).unwrap_or(json!({}));
+
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(
+        "mcp-session-id",
+        HeaderValue::from_str(&session_id).unwrap_or(HeaderValue::from_static("default")),
+    );
+    resp_headers.insert(
+        axum::http::header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+
+    (StatusCode::OK, resp_headers, Json(payload))
 }
