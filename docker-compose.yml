@@ -1,6 +1,9 @@
 services:
   qdrant:
     image: qdrant/qdrant:latest
+    environment:
+      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=16
+      - QDRANT__STORAGE__HNSW_INDEX__EF=256
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -17,6 +20,12 @@ services:
       - QDRANT_URL=http://qdrant:6334
       - PORT=3737
       - RUST_LOG=info
+      - TOKIO_WORKERS=16
+      - EMBED_CACHE_SIZE=10000
+      - EMBED_CONCURRENCY=8
+      - HNSW_EF=256
+      - HNSW_M=32
+      - STATS_CACHE_TTL_SECS=60
     depends_on:
       - qdrant
     restart: unless-stopped

@@ -1,4 +1,8 @@
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use serde_json::Value;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -17,22 +21,18 @@ pub struct AppState {
     pub qdrant: Arc<qdrant_client::Qdrant>,
     pub embedder: Arc<embed::Embedder>,
     pub sessions: SessionMap,
+    pub stats_cache: Arc<tokio::sync::RwLock<Option<(serde_json::Value, std::time::Instant)>>>,
+    pub stats_cache_ttl_secs: u64,
 }
 
-async fn rest_store(
-    State(state): State<AppState>,
-    Json(body): Json<Value>,
-) -> Json<Value> {
+async fn rest_store(State(state): State<AppState>, Json(body): Json<Value>) -> Json<Value> {
     match mcp::tools::handle_tool_call("remember", body, &state).await {
         Ok(v) => Json(v),
         Err(e) => Json(serde_json::json!({ "error": e.to_string() })),
     }
 }
 
-async fn rest_recall(
-    State(state): State<AppState>,
-    Json(body): Json<Value>,
-) -> Json<Value> {
+async fn rest_recall(State(state): State<AppState>, Json(body): Json<Value>) -> Json<Value> {
     match mcp::tools::handle_tool_call("recall", body, &state).await {
         Ok(v) => Json(v),
         Err(e) => Json(serde_json::json!({ "error": e.to_string() })),
@@ -46,8 +46,20 @@ async fn rest_stats(State(state): State<AppState>) -> Json<Value> {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    let workers = std::env::var("TOKIO_WORKERS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(16_usize);
+
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .enable_all()
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
 
     tracing_subscriber::fmt()
@@ -58,29 +70,33 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = config::Config::from_env()?;
 
-    let qdrant = Arc::new(
-        qdrant_client::Qdrant::from_url(&cfg.qdrant_url)
-            .build()?,
-    );
-    store::ensure_collection(&qdrant).await?;
+    let qdrant = Arc::new(qdrant_client::Qdrant::from_url(&cfg.qdrant_url).build()?);
+    store::ensure_collection(&qdrant, &cfg).await?;
 
-    let embedder = Arc::new(embed::Embedder::new(cfg.gemini_api_key.clone()));
+    let embedder = Arc::new(embed::Embedder::new(
+        cfg.gemini_api_key.clone(),
+        cfg.embed_cache_size,
+        cfg.embed_concurrency,
+    ));
     let sessions: SessionMap = Arc::new(dashmap::DashMap::new());
+    let stats_cache_ttl_secs = cfg.stats_cache_ttl_secs;
 
     let state = AppState {
         qdrant,
         embedder,
         sessions,
+        stats_cache: Arc::new(tokio::sync::RwLock::new(None)),
+        stats_cache_ttl_secs,
     };
 
     let app = Router::new()
         // REST convenience endpoints
         .route("/health", get(mcp::handlers::health))
-        .route("/store",  post(rest_store))
+        .route("/store", post(rest_store))
         .route("/recall", post(rest_recall))
-        .route("/stats",  get(rest_stats))
+        .route("/stats", get(rest_stats))
         // MCP SSE transport
-        .route("/sse",      get(mcp::transport::sse_handler))
+        .route("/sse", get(mcp::transport::sse_handler))
         .route("/messages", post(mcp::transport::message_handler))
         .layer(CorsLayer::permissive())
         .with_state(state);

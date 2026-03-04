@@ -1,8 +1,7 @@
 use anyhow::Result;
 use qdrant_client::qdrant::{
-    Condition, Filter, PointId, Range, ScrollPointsBuilder, SearchPointsBuilder,
-    point_id::PointIdOptions,
-    value::Kind,
+    point_id::PointIdOptions, value::Kind, Condition, Filter, PointId, Range, ScrollPointsBuilder,
+    SearchPointsBuilder,
 };
 use qdrant_client::Qdrant;
 use std::collections::HashMap;
@@ -41,7 +40,11 @@ fn val_str<'a>(
         .get(key)
         .and_then(|v| v.kind.as_ref())
         .and_then(|k| {
-            if let Kind::StringValue(s) = k { Some(s.as_str()) } else { None }
+            if let Kind::StringValue(s) = k {
+                Some(s.as_str())
+            } else {
+                None
+            }
         })
         .unwrap_or(default)
 }
@@ -51,7 +54,11 @@ fn val_i64(payload: &HashMap<String, qdrant_client::qdrant::Value>, key: &str) -
         .get(key)
         .and_then(|v| v.kind.as_ref())
         .and_then(|k| {
-            if let Kind::IntegerValue(n) = k { Some(*n) } else { None }
+            if let Kind::IntegerValue(n) = k {
+                Some(*n)
+            } else {
+                None
+            }
         })
         .unwrap_or(0)
 }
@@ -61,13 +68,21 @@ fn val_strs(payload: &HashMap<String, qdrant_client::qdrant::Value>, key: &str) 
         .get(key)
         .and_then(|v| v.kind.as_ref())
         .and_then(|k| {
-            if let Kind::ListValue(lv) = k { Some(lv) } else { None }
+            if let Kind::ListValue(lv) = k {
+                Some(lv)
+            } else {
+                None
+            }
         })
         .map(|lv| {
             lv.values
                 .iter()
                 .filter_map(|v| {
-                    if let Some(Kind::StringValue(s)) = &v.kind { Some(s.clone()) } else { None }
+                    if let Some(Kind::StringValue(s)) = &v.kind {
+                        Some(s.clone())
+                    } else {
+                        None
+                    }
                 })
                 .collect()
         })
@@ -116,7 +131,10 @@ pub async fn list_recent(
 
     let mut conditions = vec![Condition::range(
         "created_at",
-        Range { gte: Some(cutoff as f64), ..Default::default() },
+        Range {
+            gte: Some(cutoff as f64),
+            ..Default::default()
+        },
     )];
 
     if let Some(t) = filter_type {
@@ -174,7 +192,9 @@ pub async fn brain_stats(client: &Qdrant) -> Result<BrainStats> {
             *by_type.entry(t).or_insert(0) += 1;
         }
 
-        if !has_more { break; }
+        if !has_more {
+            break;
+        }
         offset = results.next_page_offset;
     }
 

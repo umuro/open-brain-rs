@@ -126,10 +126,7 @@ async fn dispatch_rpc(req: JsonRpcRequest, state: &AppState) -> JsonRpcResponse 
                 }
             }),
         ),
-        "tools/list" => JsonRpcResponse::ok(
-            req.id,
-            json!({ "tools": tools_list() }),
-        ),
+        "tools/list" => JsonRpcResponse::ok(req.id, json!({ "tools": tools_list() })),
         "tools/call" => {
             let params = req.params.unwrap_or(json!({}));
             let name = params["name"].as_str().unwrap_or("").to_string();

@@ -1,8 +1,8 @@
-/// Migration tool: reads SOURCE_DIR/**/*.md, chunks by ## header,
-/// embeds with Gemini, upserts to Qdrant.
-///
-/// Usage:
-///   SOURCE_DIR=./docs QDRANT_URL=http://localhost:6334 GEMINI_API_KEY=xxx cargo run --bin migrate
+//! Migration tool: reads SOURCE_DIR/**/*.md, chunks by ## header,
+//! embeds with Gemini, upserts to Qdrant.
+//!
+//! Usage:
+//!   SOURCE_DIR=./docs QDRANT_URL=http://localhost:6334 GEMINI_API_KEY=xxx cargo run --bin migrate
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -124,8 +124,7 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    let source_dir =
-        std::env::var("SOURCE_DIR").context("SOURCE_DIR env var required")?;
+    let source_dir = std::env::var("SOURCE_DIR").context("SOURCE_DIR env var required")?;
     let qdrant_url =
         std::env::var("QDRANT_URL").unwrap_or_else(|_| "http://localhost:6334".to_string());
     let gemini_api_key =
@@ -138,18 +137,18 @@ async fn main() -> Result<()> {
 
     // Ensure collection exists
     use qdrant_client::qdrant::{
-        CreateCollectionBuilder, Distance, VectorParamsBuilder, VectorsConfig, vectors_config,
+        vectors_config, CreateCollectionBuilder, Distance, VectorParamsBuilder, VectorsConfig,
     };
     let collections = qdrant.list_collections().await?;
     if !collections.collections.iter().any(|c| c.name == COLLECTION) {
         qdrant
-            .create_collection(
-                CreateCollectionBuilder::new(COLLECTION).vectors_config(VectorsConfig {
+            .create_collection(CreateCollectionBuilder::new(COLLECTION).vectors_config(
+                VectorsConfig {
                     config: Some(vectors_config::Config::Params(
                         VectorParamsBuilder::new(DIM, Distance::Cosine).build(),
                     )),
-                }),
-            )
+                },
+            ))
             .await?;
         tracing::info!("Created collection '{}'", COLLECTION);
     }
