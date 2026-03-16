@@ -78,10 +78,8 @@ pub async fn sse_handler(
     state.sessions.insert(session_id.clone(), tx);
 
     // Send the endpoint event so clients know where to POST messages
-    let endpoint_msg = format!(
-        "{{\"type\":\"endpoint\",\"endpoint\":\"/messages?sessionId={}\"}}",
-        session_id
-    );
+    // MCP SSE spec requires plain URL string, not JSON wrapper
+    let endpoint_msg = format!("/messages?sessionId={}", session_id);
 
     let stream = async_stream::stream! {
         // Send endpoint info immediately
